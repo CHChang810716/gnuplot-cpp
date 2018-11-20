@@ -13,11 +13,11 @@ target_include_directories(gnuplot_i INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>
 ) # add include directory to target
-target_compile_definitions(gnuplot_i INTERFACE GNU_PLOT_BIN="${GNU_PLOT_BIN}")
 list(APPEND installed_targets gnuplot_i)
 
 if(BUILD_EXAMPLE)
     add_executable(example example.cc) # An executable target
+    target_compile_definitions(example PRIVATE GNU_PLOT_BIN="${GNU_PLOT_BIN}")
     target_link_libraries(example gnuplot_i)
     list(APPEND installed_targets example)
 endif()
