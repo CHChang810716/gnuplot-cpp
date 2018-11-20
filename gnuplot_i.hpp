@@ -41,6 +41,8 @@
 #include <cstdlib>              // for getenv()
 #include <list>                 // for std::list
 
+#define STR(sym) #sym
+#define UNWRAP_SYM_STR(sym) STR(sym)
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__)
 //defined for 32 and 64-bit environments
@@ -92,8 +94,6 @@ private:
     static int               tmpfile_num;
     ///\brief name of executed GNUPlot file
     static std::string       m_sGNUPlotFileName;
-    ///\brief gnuplot path
-    static std::string       m_sGNUPlotPath;
     ///\brief standart terminal, used by showonscreen
     static std::string       terminal_std;
 
@@ -116,15 +116,6 @@ private:
     // ---------------------------------------------------
     std::string    create_tmpfile(std::ofstream &tmp);
 
-    //----------------------------------------------------------------------------------
-    ///\brief gnuplot path found?
-    ///
-    /// \param ---
-    ///
-    /// \return <-- found the gnuplot path (yes == true, no == false)
-    // ---------------------------------------------------------------------------------
-    static bool    get_program_path();
-
     // ---------------------------------------------------------------------------------
     ///\brief checks if file is available
     ///
@@ -146,17 +137,6 @@ private:
     static bool    file_exists(const std::string &filename, int mode=0);
 
 public:
-
-    // ----------------------------------------------------------------------------
-    /// \brief optional function: set Gnuplot path manual
-    /// attention:  for windows: path with slash '/' not backslash '\'
-    ///
-    /// \param path --> the gnuplot path
-    ///
-    /// \return true on success, false otherwise
-    // ----------------------------------------------------------------------------
-    static bool set_GNUPlotPath(const std::string &path);
-
 
     // ----------------------------------------------------------------------------
     /// optional: set standart terminal, used by showonscreen
@@ -676,13 +656,7 @@ public:
 //
 int Gnuplot::tmpfile_num = 0;
 
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__)
-std::string Gnuplot::m_sGNUPlotFileName = "pgnuplot.exe";
-std::string Gnuplot::m_sGNUPlotPath = "C:/program files/gnuplot/bin/";
-#elif defined(unix) || defined(__unix) || defined(__unix__) || defined(__APPLE__)
-std::string Gnuplot::m_sGNUPlotFileName = "gnuplot";
-std::string Gnuplot::m_sGNUPlotPath = "/usr/local/bin/";
-#endif
+std::string Gnuplot::m_sGNUPlotFileName = UNWRAP_SYM_STR(GNU_PLOT_BIN);
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__)
 std::string Gnuplot::terminal_std = "windows";
@@ -934,33 +908,6 @@ Gnuplot& Gnuplot::plot_xyz(const X &x,
     return *this;
 }
 
-
-//------------------------------------------------------------------------------
-//
-// define static member function: set Gnuplot path manual
-//   for windows: path with slash '/' not backslash '\'
-//
-bool Gnuplot::set_GNUPlotPath(const std::string &path)
-{
-
-    std::string tmp = path + "/" + Gnuplot::m_sGNUPlotFileName;
-
-
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__)
-    if ( Gnuplot::file_exists(tmp,0) ) // check existence
-#elif defined(unix) || defined(__unix) || defined(__unix__) || defined(__APPLE__)
-    if ( Gnuplot::file_exists(tmp,1) ) // check existence and execution permission
-#endif
-    {
-        Gnuplot::m_sGNUPlotPath = path;
-        return true;
-    }
-    else
-    {
-        Gnuplot::m_sGNUPlotPath.clear();
-        return false;
-    }
-}
 
 
 //------------------------------------------------------------------------------
@@ -1790,19 +1737,19 @@ void Gnuplot::init()
 #endif
 
 
-    // if gnuplot not available
-    if (!Gnuplot::get_program_path())
-    {
-        valid = false;
-        throw GnuplotException("Can't find gnuplot");
-    }
+    // // if gnuplot not available
+    // if (!Gnuplot::get_program_path())
+    // {
+    //     valid = false;
+    //     throw GnuplotException("Can't find gnuplot");
+    // }
+    valid = true;
 
 
     //
     // open pipe
     //
-    std::string tmp = Gnuplot::m_sGNUPlotPath + "/" +
-                      Gnuplot::m_sGNUPlotFileName;
+    std::string tmp = Gnuplot::m_sGNUPlotFileName;
 
     // FILE *popen(const char *command, const char *mode);
     // The popen() function shall execute the command specified by the string
@@ -1833,76 +1780,6 @@ void Gnuplot::init()
 
     return;
 }
-
-
-//------------------------------------------------------------------------------
-//
-// Find out if a command lives in m_sGNUPlotPath or in PATH
-//
-bool Gnuplot::get_program_path()
-{
-    //
-    // first look in m_sGNUPlotPath for Gnuplot
-    //
-    std::string tmp = Gnuplot::m_sGNUPlotPath + "/" +
-                      Gnuplot::m_sGNUPlotFileName;
-
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__)
-    if ( Gnuplot::file_exists(tmp,0) ) // check existence
-#elif defined(unix) || defined(__unix) || defined(__unix__) || defined(__APPLE__)
-    if ( Gnuplot::file_exists(tmp,1) ) // check existence and execution permission
-#endif
-    {
-        return true;
-    }
-
-
-    //
-    // second look in PATH for Gnuplot
-    //
-    char *path;
-    // Retrieves a C string containing the value of environment variable PATH
-    path = getenv("PATH");
-
-
-    if (path == NULL)
-    {
-        throw GnuplotException("Path is not set");
-        return false;
-    }
-    else
-    {
-        std::list<std::string> ls;
-
-        //split path (one long string) into list ls of strings
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__)
-        stringtok(ls,path,";");
-#elif defined(unix) || defined(__unix) || defined(__unix__) || defined(__APPLE__)
-        stringtok(ls,path,":");
-#endif
-
-        // scan list for Gnuplot program files
-        for (std::list<std::string>::const_iterator i = ls.begin();
-                i != ls.end(); ++i)
-        {
-            tmp = (*i) + "/" + Gnuplot::m_sGNUPlotFileName;
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__)
-            if ( Gnuplot::file_exists(tmp,0) ) // check existence
-#elif defined(unix) || defined(__unix) || defined(__unix__) || defined(__APPLE__)
-            if ( Gnuplot::file_exists(tmp,1) ) // check existence and execution permission
-#endif
-            {
-                Gnuplot::m_sGNUPlotPath = *i; // set m_sGNUPlotPath
-                return true;
-            }
-        }
-
-        tmp = "Can't find gnuplot neither in PATH nor in \"" +
-              Gnuplot::m_sGNUPlotPath + "\"";
-        throw GnuplotException(tmp);
-    }
-}
-
 
 
 //------------------------------------------------------------------------------
